@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { LinkedMessage, TranslationMessage } from '../i18n/index.js'
-import { uploadFile } from './api/client.js'
+import { ApiError, uploadFile } from './api/client.js'
+import { currentProvider } from './api/provider.js'
 import { classifyApiError, getUploadErrorInfo, isRetryableApiError } from './api/errors.js'
 import type { FilePurpose } from './api/types.js'
 import { ACCEPT_FILE_EXTS } from './uploadExts.js'
@@ -131,8 +132,14 @@ const enqueueUpload = (
         return
       }
       try {
+        const cfg = { ...currentProvider(), apiKey }
+        // 附件依赖 Files API，只有 Anthropic 兼容协议提供
+        if (cfg.protocol !== 'anthropic') {
+          reject(new ApiError('protocol', { key: 'uploadUnsupported' }))
+          return
+        }
         const body = file instanceof File ? file : new File([file], name, { type: file.type })
-        resolve((await uploadFile(apiKey, body, getUploadPurpose(name, isImage), signal)).id)
+        resolve((await uploadFile(cfg, body, getUploadPurpose(name, isImage), signal)).id)
       } catch (error) {
         reject(error)
       }

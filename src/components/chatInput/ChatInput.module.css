@@ -330,3 +330,7 @@
     cursor: not-allowed;
   }
 }
+
+.hidden {
+  display: none;
+}

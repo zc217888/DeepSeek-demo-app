@@ -440,3 +440,25 @@
     max-width: 100%;
   }
 }
+
+/* 服务商设置：地址与模型输入框占满右侧剩余宽度，模型行内含刷新按钮 */
+.providerInput {
+  flex: 0 1 300px;
+  min-width: 160px;
+}
+
+.providerModelRow {
+  display: flex;
+  flex-shrink: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.providerModelRow .providerInput {
+  flex: 1 1 auto;
+}
+
+.providerModelSelect {
+  max-width: 300px;
+}

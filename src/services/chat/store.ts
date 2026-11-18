@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { createId } from '../../utils/id.js'
 import { ApiError, streamMessage } from '../api/client.js'
+import { currentProvider } from '../api/provider.js'
 import type { ChatModel, CreateMessageRequest } from '../api/types.js'
 import { extractFileIds, getFileErrorCode, isRetryableApiError } from '../api/errors.js'
 import { cancelUpload, describeUploadError, uploadAttachment, useUploads } from '../attachments.js'
@@ -260,7 +261,7 @@ const createReply = (): AssistantMessage => {
     id: createId(),
     role: 'assistant',
     createdAt: Date.now(),
-    model: MODEL,
+    model: currentProvider().model,
     thinking,
     search,
     prefix: true,
@@ -708,8 +709,8 @@ export const continueReply = (sessionId: string, messageId: string) => {
   const { thinking, search } = useSettings.getState()
   const reply: AssistantMessage = {
     ...previous,
-    // 未记录请求配置的回复，续写时使用默认模型和当前开关。
-    model: previous.model ?? MODEL,
+    // 未记录请求配置的回复，续写时使用当前模型和开关。
+    model: previous.model ?? currentProvider().model,
     thinking: previous.thinking ?? thinking,
     search: previous.search ?? search,
     status: 'pending',
@@ -959,6 +960,19 @@ const waitForRetry = (attempt: number, signal: AbortSignal) =>
  * 补传失败时回复记为 upload 错误，可重试。
  * 服务端判定 file_id 失效时重新补传后重发，退避重试且次数有上限，超过则按原始报错收尾。
  */
+/** 非 Anthropic 协议没有服务端标题生成，用第一句提问截断代替 */
+const fallbackTitle = (sessionId: string, controller: AbortController, question: UserMessage) => {
+  if (!titleRequests.has(controller) || controller.signal.aborted || get().importingHistory) {
+    return
+  }
+  const text = question.content.trim().replace(/\s+/g, ' ')
+  if (!text) {
+    return
+  }
+  const title = text.length > 24 ? `${text.slice(0, 24)}…` : text
+  updateSession(sessionId, (session) => (session.title ? session : { ...session, title }))
+  titleRequests.delete(controller)
+}
 const streamReply = async (sessionId: string, initial: AssistantMessage, request: Request) => {
   const controller = new AbortController()
   if (!getSession(sessionId)?.title) {
@@ -996,10 +1010,11 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
           initial.thinking ?? false,
           latestReminder
         )
+        const provider = currentProvider()
         const events = streamMessage(
-          useSettings.getState().apiKey ?? '',
+          provider,
           {
-            model: initial.model ?? MODEL,
+            model: provider.model || initial.model || MODEL,
             system: SYSTEM_PROMPT,
             messages,
             thinking: { type: initial.thinking ? 'enabled' : 'disabled' },
@@ -1032,6 +1047,10 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
           }
         }
         reply = settleReply(reply, 'done', Date.now())
+        // 服务端没给标题（第三方协议）时用提问内容兜底
+        if (provider.protocol !== 'anthropic') {
+          fallbackTitle(sessionId, controller, prepared.question)
+        }
         break
       } catch (error) {
         if (controller.signal.aborted) {

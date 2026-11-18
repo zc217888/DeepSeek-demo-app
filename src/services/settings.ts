@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { TtsVoice } from './api/speech.js'
+import type { ApiProtocol } from './api/provider.js'
 import { normalizeLocation, type UserLocation } from './location.js'
 
 export type Locale = 'zh-CN' | 'en-US'
@@ -7,9 +8,15 @@ export type Locale = 'zh-CN' | 'en-US'
 /** 主题偏好；默认跟随系统 */
 export type ThemePreference = 'light' | 'dark' | 'system'
 
-/** 本机设置，存 localStorage：API Key、语言、主题、位置、朗读音色、深度思考与智能搜索开关、侧边栏收起状态 */
+/** 本机设置，存 localStorage：API Key、接口协议与地址、模型、语言、主题、位置、朗读音色、深度思考与智能搜索开关、侧边栏收起状态 */
 type Settings = {
   apiKey: string | null
+  /** 接口协议，默认 DeepSeek 的 Anthropic 兼容接口 */
+  protocol: ApiProtocol
+  /** 自定义接口地址，空表示使用默认地址 */
+  baseUrl: string
+  /** 模型名，空表示使用协议默认模型 */
+  model: string
   locale: Locale
   themePreference: ThemePreference
   location: UserLocation | null
@@ -21,6 +28,9 @@ type Settings = {
 
 const KEYS = {
   apiKey: 'chat-demo:api-key',
+  protocol: 'chat-demo:api-protocol',
+  baseUrl: 'chat-demo:api-base-url',
+  model: 'chat-demo:api-model',
   locale: 'chat-demo:locale',
   location: 'chat-demo:location',
   themePreference: 'chat-demo:theme-preference',
@@ -87,8 +97,14 @@ const initialThemePreference = (): ThemePreference => {
 /** 未保存过时使用服务端默认音色 stella（海星） */
 const initialTtsVoice = (): TtsVoice => (read(KEYS.ttsVoice) === 'tide' ? 'tide' : 'stella')
 
+const isProtocol = (value: string | null): value is ApiProtocol =>
+  value === 'anthropic' || value === 'openai-chat' || value === 'openai-responses'
+
 export const useSettings = create<Settings>(() => ({
   apiKey: read(KEYS.apiKey),
+  protocol: isProtocol(read(KEYS.protocol)) ? (read(KEYS.protocol) as ApiProtocol) : 'anthropic',
+  baseUrl: read(KEYS.baseUrl) ?? '',
+  model: read(KEYS.model) ?? '',
   locale: initialLocale(),
   location: initialLocation(),
   themePreference: initialThemePreference(),
@@ -122,6 +138,26 @@ export const setTtsVoice = (ttsVoice: TtsVoice) => {
 export const setApiKey = (apiKey: string | null) => {
   write(KEYS.apiKey, apiKey)
   useSettings.setState({ apiKey })
+}
+
+/** 切换协议时清空自定义地址与模型，避免把上一个服务商的配置带过去 */
+export const setProtocol = (protocol: ApiProtocol) => {
+  write(KEYS.protocol, protocol)
+  write(KEYS.baseUrl, null)
+  write(KEYS.model, null)
+  useSettings.setState({ protocol, baseUrl: '', model: '' })
+}
+
+export const setBaseUrl = (baseUrl: string) => {
+  const value = baseUrl.trim()
+  write(KEYS.baseUrl, value || null)
+  useSettings.setState({ baseUrl: value })
+}
+
+export const setModel = (model: string) => {
+  const value = model.trim()
+  write(KEYS.model, value || null)
+  useSettings.setState({ model: value })
 }
 
 export const setThinking = (thinking: boolean) => {

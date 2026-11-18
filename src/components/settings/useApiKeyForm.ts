@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ApiError, verifyApiKey } from '../../services/api/client.js'
+import { currentProvider } from '../../services/api/provider.js'
 import { classifyApiError } from '../../services/api/errors.js'
 import { setApiKey } from '../../services/settings.js'
 import { useTranslate } from '../../i18n/index.js'
@@ -35,7 +36,8 @@ export const useApiKeyForm = (onSaved?: () => void) => {
     setVerifying(true)
     setFailure(null)
     try {
-      await verifyApiKey(apiKey)
+      // 按当前协议与地址校验，自定义服务商也走同一个 GET /models
+      await verifyApiKey({ ...currentProvider(), apiKey })
       setApiKey(apiKey)
       setValue('')
       onSaved?.()

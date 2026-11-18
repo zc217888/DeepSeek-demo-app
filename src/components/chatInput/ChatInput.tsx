@@ -49,6 +49,8 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   const streaming = useChatStore(
     (state) => sessionId !== null && Object.hasOwn(state.streaming, sessionId)
   )
+  // 联网搜索、深度思考、附件与语音都依赖 DeepSeek 服务端能力，自定义协议下隐藏
+  const nativeCapabilities = useSettings((state) => state.protocol === 'anthropic')
   const thinking = useSettings((state) => state.thinking)
   const importingHistory = useChatStore((state) => state.importingHistory)
   const isMobile = useIsMobile()
@@ -201,7 +203,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
       </div>
       <div className={styles.functionRow}>
         {/* 深度思考 / 智能搜索开关，tooltip 在按钮上方 */}
-        <div ref={togglesRef} className={styles.toggles}>
+        <div ref={togglesRef} className={clsx(styles.toggles, !nativeCapabilities && styles.hidden)}>
           <Tooltip content={t('deactivatedThinkTooltip')}>
             <button
               type="button"
@@ -228,6 +230,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
           </Tooltip>
         </div>
         <div className={styles.right}>
+          {nativeCapabilities ? (
           <VoiceButton
             status={voice.status}
             disabled={!voice.available}
@@ -241,6 +244,9 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
               }
             }}
           />
+          ) : null}
+          {nativeCapabilities ? (
+          <>
           <IconButton
             size="m"
             tone="primary"
@@ -260,6 +266,8 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
               event.target.value = ''
             }}
           />
+          </>
+          ) : null}
           {streaming && sessionId ? (
             <button
               type="button"

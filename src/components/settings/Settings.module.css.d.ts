@@ -33,6 +33,9 @@ declare const styles: {
   readonly "importConfirmText": string;
   readonly "deleteConfirm": string;
   readonly "deleteActions": string;
+  readonly "providerInput": string;
+  readonly "providerModelRow": string;
+  readonly "providerModelSelect": string;
 };
 export = styles;
 
