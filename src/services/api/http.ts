@@ -1,3 +1,4 @@
+import { Capacitor, CapacitorHttp } from '@capacitor/core'
 import { translate, type TranslationMessage } from '../../i18n/index.js'
 import type { ApiErrorBody } from './types.js'
 
@@ -51,6 +52,29 @@ export const readErrorResponse = async (
   return new ApiError(kind, message, response.status)
 }
 
+/**
+ * 原生 HTTP 请求：APK 里 WebView 的 fetch 会被跨域（CORS）与明文限制拦截，
+ * 第三方服务商大多不发 CORS 头。fetch 失败时走 Capacitor 原生通道，绕开这些限制。
+ * 原生通道不支持流式，返回的是完整响应体，仅作为兜底。
+ */
+const nativeResponse = async (url: string, init: RequestInit): Promise<Response> => {
+  const headers =
+    init.headers instanceof Headers
+      ? Object.fromEntries(init.headers.entries())
+      : ((init.headers as Record<string, string> | undefined) ?? {})
+  const result = await CapacitorHttp.request({
+    url,
+    method: (init.method ?? 'GET') as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH',
+    headers,
+    data: typeof init.body === 'string' ? init.body : undefined,
+    responseType: 'text',
+  })
+  return new Response(typeof result.data === 'string' ? result.data : '', {
+    status: result.status,
+    headers: result.headers,
+  })
+}
+
 export const request = async (url: string, init: RequestInit): Promise<Response> => {
   let response: Response
   try {
@@ -59,7 +83,19 @@ export const request = async (url: string, init: RequestInit): Promise<Response>
     if (init.signal?.aborted) {
       throw error
     }
-    throw new ApiError('network', error instanceof Error ? error.message : String(error))
+    // WebView 跨域/明文拦截表现为 fetch 抛 TypeError，换原生通道重试一次
+    if (Capacitor.isNativePlatform() && !(init.body instanceof FormData)) {
+      try {
+        response = await nativeResponse(url, init)
+      } catch (nativeError) {
+        if (init.signal?.aborted) {
+          throw nativeError
+        }
+        throw new ApiError('network', nativeError instanceof Error ? nativeError.message : String(nativeError))
+      }
+    } else {
+      throw new ApiError('network', error instanceof Error ? error.message : String(error))
+    }
   }
   if (!response.ok) {
     throw await readErrorResponse(response)

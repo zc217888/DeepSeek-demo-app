@@ -49,8 +49,8 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   const streaming = useChatStore(
     (state) => sessionId !== null && Object.hasOwn(state.streaming, sessionId)
   )
-  // 联网搜索、深度思考、附件与语音都依赖 DeepSeek 服务端能力，自定义协议下隐藏
-  const nativeCapabilities = useSettings((state) => state.protocol === 'anthropic')
+  // 联网搜索、深度思考、附件与语音都依赖 DeepSeek 官方服务端能力，仅官方接口模式下显示
+  const nativeCapabilities = useSettings((state) => state.providerMode === 'official')
   const thinking = useSettings((state) => state.thinking)
   const importingHistory = useChatStore((state) => state.importingHistory)
   const isMobile = useIsMobile()

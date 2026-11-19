@@ -4,21 +4,21 @@ import { useSettings } from '../../services/settings.js'
 import { useIsMobile } from '../../app/viewport.js'
 import { IconButton } from '../base/IconButton.js'
 import { useApiKeyForm } from './useApiKeyForm.js'
-import { useTranslate } from '../../i18n/index.js'
+import { useTranslate, type TranslationKey } from '../../i18n/index.js'
 import styles from './Settings.module.css'
 
-/** API Key 的编辑状态：输入框与移动端底部的「确定」按钮共用 */
-export const useApiKeyEditor = () => {
-  const apiKey = useSettings((state) => state.apiKey)
+/** API Key 的编辑状态：输入框与移动端底部的「确定」按钮共用；target 区分官方 Key 与自定义服务商 Key */
+export const useApiKeyEditor = (target: 'official' | 'custom' = 'official') => {
+  const apiKey = useSettings((state) => (target === 'official' ? state.apiKey : state.customApiKey))
   const [editing, setEditing] = useState(false)
-  const form = useApiKeyForm(() => setEditing(false))
+  const form = useApiKeyForm(() => setEditing(false), target)
   return { apiKey, editing, setEditing, form, showInput: !apiKey || editing }
 }
 
 type ApiKeyEditor = ReturnType<typeof useApiKeyEditor>
 
-/** API Key：保存后只显示掩码，点编辑按钮才能重新输入 */
-export const ApiKeyField = ({ editor }: { editor: ApiKeyEditor }) => {
+/** API Key：保存后只显示掩码，点编辑按钮才能重新输入；labelKey 用于区分官方与自定义服务商 */
+export const ApiKeyField = ({ editor, labelKey = 'apiKeyStart' }: { editor: ApiKeyEditor; labelKey?: TranslationKey }) => {
   const t = useTranslate()
   const isMobile = useIsMobile()
   const { apiKey, editing, setEditing, form, showInput } = editor
@@ -26,7 +26,7 @@ export const ApiKeyField = ({ editor }: { editor: ApiKeyEditor }) => {
   return (
     <div className={styles.cell}>
       <div className={styles.apiKey}>
-        <div className={styles.label}>{t('apiKeyStart')}</div>
+        <div className={styles.label}>{t(labelKey)}</div>
         {apiKey && !editing ? (
           <div className={styles.apiKeySaved}>
             <span className={styles.apiKeyMask}>{'*'.repeat(apiKey.length)}</span>

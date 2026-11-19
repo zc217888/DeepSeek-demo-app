@@ -60,14 +60,28 @@ export const authHeaders = (cfg: Pick<ProviderConfig, 'protocol' | 'base' | 'api
   return { Authorization: `Bearer ${cfg.apiKey}` }
 }
 
-/** 从本机设置读出当前服务商配置；model 为空时回落到协议默认模型 */
+/**
+ * 官方 DeepSeek 配置：Anthropic 协议、官方地址、官方 API Key，与自定义服务商完全独立。
+ * 传入 apiKey 用于保存前的校验。
+ */
+export const officialProvider = (apiKey?: string): ProviderConfig => ({
+  protocol: 'anthropic',
+  base: resolveBase('anthropic', ''),
+  apiKey: apiKey ?? useSettings.getState().apiKey ?? '',
+  model: DEFAULT_MODEL.anthropic,
+})
+
+/** 从本机设置读出当前生效的服务商配置；model 为空时回落到协议默认模型 */
 export const currentProvider = (): ProviderConfig => {
-  const { protocol, baseUrl, apiKey, model } = useSettings.getState()
+  const state = useSettings.getState()
+  if (state.providerMode === 'official') {
+    return officialProvider()
+  }
   return {
-    protocol,
-    base: resolveBase(protocol, baseUrl),
-    apiKey: apiKey ?? '',
-    model: model.trim() || DEFAULT_MODEL[protocol],
+    protocol: state.protocol,
+    base: resolveBase(state.protocol, state.baseUrl),
+    apiKey: state.customApiKey ?? '',
+    model: state.model.trim() || DEFAULT_MODEL[state.protocol],
   }
 }
 

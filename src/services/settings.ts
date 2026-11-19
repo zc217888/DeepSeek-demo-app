@@ -8,10 +8,17 @@ export type Locale = 'zh-CN' | 'en-US'
 /** 主题偏好；默认跟随系统 */
 export type ThemePreference = 'light' | 'dark' | 'system'
 
+/** 服务商模式：官方 DeepSeek 接口，或自定义服务商（协议/地址/模型/Key 独立配置） */
+export type ProviderMode = 'official' | 'custom'
+
 /** 本机设置，存 localStorage：API Key、接口协议与地址、模型、语言、主题、位置、朗读音色、深度思考与智能搜索开关、侧边栏收起状态 */
 type Settings = {
   apiKey: string | null
-  /** 接口协议，默认 DeepSeek 的 Anthropic 兼容接口 */
+  /** 官方 DeepSeek / 自定义服务商切换 */
+  providerMode: ProviderMode
+  /** 自定义服务商的 API Key（与官方 Key 相互独立） */
+  customApiKey: string | null
+  /** 自定义服务商的接口协议，默认 DeepSeek 的 Anthropic 兼容接口 */
   protocol: ApiProtocol
   /** 自定义接口地址，空表示使用默认地址 */
   baseUrl: string
@@ -28,6 +35,8 @@ type Settings = {
 
 const KEYS = {
   apiKey: 'chat-demo:api-key',
+  providerMode: 'chat-demo:provider-mode',
+  customApiKey: 'chat-demo:custom-api-key',
   protocol: 'chat-demo:api-protocol',
   baseUrl: 'chat-demo:api-base-url',
   model: 'chat-demo:api-model',
@@ -100,8 +109,13 @@ const initialTtsVoice = (): TtsVoice => (read(KEYS.ttsVoice) === 'tide' ? 'tide'
 const isProtocol = (value: string | null): value is ApiProtocol =>
   value === 'anthropic' || value === 'openai-chat' || value === 'openai-responses'
 
+const initialProviderMode = (): ProviderMode =>
+  read(KEYS.providerMode) === 'custom' ? 'custom' : 'official'
+
 export const useSettings = create<Settings>(() => ({
   apiKey: read(KEYS.apiKey),
+  providerMode: initialProviderMode(),
+  customApiKey: read(KEYS.customApiKey),
   protocol: isProtocol(read(KEYS.protocol)) ? (read(KEYS.protocol) as ApiProtocol) : 'anthropic',
   baseUrl: read(KEYS.baseUrl) ?? '',
   model: read(KEYS.model) ?? '',
@@ -140,12 +154,21 @@ export const setApiKey = (apiKey: string | null) => {
   useSettings.setState({ apiKey })
 }
 
-/** 切换协议时清空自定义地址与模型，避免把上一个服务商的配置带过去 */
+export const setCustomApiKey = (apiKey: string | null) => {
+  write(KEYS.customApiKey, apiKey)
+  useSettings.setState({ customApiKey: apiKey })
+}
+
+export const setProviderMode = (mode: ProviderMode) => {
+  write(KEYS.providerMode, mode)
+  useSettings.setState({ providerMode: mode })
+}
+
+/** 切换协议时保留接口地址（同一服务商常兼容多种协议），只清空协议相关的模型名 */
 export const setProtocol = (protocol: ApiProtocol) => {
   write(KEYS.protocol, protocol)
-  write(KEYS.baseUrl, null)
   write(KEYS.model, null)
-  useSettings.setState({ protocol, baseUrl: '', model: '' })
+  useSettings.setState({ protocol, model: '' })
 }
 
 export const setBaseUrl = (baseUrl: string) => {
